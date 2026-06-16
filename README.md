@@ -40,11 +40,11 @@ This project uses the **Epileptic Seizure Recognition** dataset to build binary 
 
 **Feature Importance (Random Forest)**
 
-![Feature Importance](results/feature_importance.png)
+![Feature Importance](feature_importance.png)
 
 **ROC Curve (AUC = 1.00)**
 
-![ROC Curve](results/roc_curve.png)
+![ROC Curve](roc_curve.png)
 
 ## ⚙️ How to Run
 ```bash
