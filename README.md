@@ -1,75 +1,68 @@
+# Epileptic Seizure Detection from EEG Signals
 
-# EEG Seizure Classification
+Binary classification of epileptic seizure activity from single-channel EEG segments, benchmarked across three model families with rigorous handling of class imbalance and explainability analysis.
 
-ML models for seizure detection from EEG data, comparing Logistic Regression, SVM, and Random Forest classifiers.
+**Dataset**: [Epileptic Seizure Recognition](https://archive.ics.uci.edu/dataset/388/epileptic+seizure+recognition) (UCI / Kaggle) — 11,500 EEG segments × 178 time-domain features, 20% positive (seizure) class.
 
-## 📌 Overview
-This project uses the **Epileptic Seizure Recognition** dataset to build binary classifiers (seizure vs. non-seizure) based on EEG signal features. Multiple machine learning models are trained and compared, with performance evaluated using accuracy, classification reports, ROC-AUC, and cross-validation.
+## Results
 
-## 📊 Dataset
-- Source: [Add dataset link - e.g., Kaggle/UCI]
-- 11,500 samples × 178 EEG features
-- Original labels (1–5) converted to binary: `1` = seizure, `0` = non-seizure (labels 2–5)
-- Train/Test split: 80% / 20%
+Best model: **SVM (RBF kernel)** — selected by seizure-class F1 on held-out test data.
 
-## 🛠️ Models Used
-- Logistic Regression
-- Support Vector Machine (SVM)
-- Random Forest Classifier
+### Held-out test set (2,300 samples, unseen during training/CV)
 
-## 📈 Results
+| Model | Accuracy | Seizure Recall | Seizure Precision | Seizure F1 | Avg. Precision |
+|---|---|---|---|---|---|
+| Logistic Regression | 0.706 | 0.393 | 0.313 | 0.348 | 0.398 |
+| **SVM (RBF)** | **0.975** | **0.965** | **0.915** | **0.940** | **0.981** |
+| Random Forest | 0.973 | 0.896 | 0.967 | 0.930 | 0.988 |
 
-| Model | Accuracy |
-|-------|----------|
-| Logistic Regression | 80.39% |
-| SVM | 97.87% |
-| Random Forest | 97.87% |
+### 5-fold stratified cross-validation (mean ± std)
 
-**Best Model: Random Forest / SVM**
+| Model | Accuracy | Recall | Precision | F1 | ROC-AUC |
+|---|---|---|---|---|---|
+| Logistic Regression | 0.704 ± 0.007 | 0.442 ± 0.017 | 0.324 ± 0.008 | 0.374 ± 0.010 | 0.530 ± 0.017 |
+| **SVM (RBF)** | **0.975 ± 0.002** | **0.960 ± 0.006** | **0.918 ± 0.007** | **0.939 ± 0.005** | **0.995 ± 0.001** |
+| Random Forest | 0.970 ± 0.003 | 0.884 ± 0.010 | 0.963 ± 0.008 | 0.922 ± 0.007 | 0.996 ± 0.001 |
 
-**Cross-Validation Accuracy (Random Forest, 5-fold):** 97.42%
+Held-out and cross-validated numbers agree closely (SVM: 0.940 test F1 vs. 0.939 ± 0.005 CV F1), indicating the result is stable rather than a lucky split.
 
-### Classification Report (Random Forest)
-| Class | Precision | Recall | F1-Score |
-|-------|-----------|--------|----------|
-| Non-Seizure (0) | 0.99 | 0.99 | 0.99 |
-| Seizure (1) | 0.95 | 0.94 | 0.95 |
-| **Overall** | **0.98** | **0.98** | **0.98** |
+### Why SVM over Random Forest, despite near-identical accuracy
 
-### Visualizations
+Both models score ~97% accuracy, but they fail differently — the choice depends on what a false negative costs versus what a false alarm costs:
 
-**Feature Importance (Random Forest)**
+- **SVM** — 96.5% recall, 91.5% precision. Misses fewer true seizures (16 of 460 in the test set) but raises more false alarms (41). Preferable when missing a seizure is the costlier error, e.g. a clinical monitoring alert system.
+- **Random Forest** — 89.6% recall, 96.7% precision. Fewer false alarms (14) but misses more true seizures (48). Preferable when alert fatigue is the dominant concern.
 
-![Feature Importance]
+This precision/recall tradeoff is visualized in `roc_pr_curves.png`.
 
-**ROC Curve (AUC = 1.00)**
+## Method
 
-![ROC Curve](roc_curve.png)
+1. **Preprocessing** — binarized the 5-class label into seizure (1) vs. non-seizure (2–5); stratified 80/20 train/test split to preserve the 80/20 class ratio in both sets.
+2. **Scaling** — `StandardScaler` fit on training data only, applied to SVM and Logistic Regression (both scale-sensitive); Random Forest left unscaled (scale-invariant).
+3. **Class imbalance** — `class_weight='balanced'` on all three models rather than naive accuracy optimization, given the 80/20 split.
+4. **Validation** — 5-fold stratified cross-validation reported alongside a single held-out test set, to confirm results generalize rather than reflect one split.
+5. **Explainability** — SHAP (`TreeExplainer` for Random Forest, `KernelExplainer` for SVM) to identify which of the 178 EEG feature indices drive seizure predictions, saved to `shap_top_features.csv` / `.png`.
 
-## ⚙️ How to Run
+## Repository contents
+
+```
+seizure_classification.py      # full pipeline: load → scale → CV → test eval → SHAP
+cv_results_summary.csv         # 5-fold CV metrics per model
+test_results_summary.csv       # held-out test metrics per model
+roc_pr_curves.png              # ROC + precision-recall curves, all 3 models
+shap_top_features.csv          # top 15 EEG features by mean |SHAP value|
+shap_top_features.png          # SHAP feature importance chart
+```
+
+## Run it
+
 ```bash
-pip install -r requirements.txt
-python seizure_detection.py
+pip install pandas scikit-learn matplotlib shap
+python seizure_classification.py
 ```
 
-> Download the dataset from [Add link] and place it in a `data/` folder before running.
+Edit `DATA_PATH` at the top of the script to point to your local copy of the dataset CSV.
 
-## 📁 Project Structure
-```
-eeg-seizure-classification/
-├── seizure_detection.py
-├── requirements.txt
-├── results/
-│   ├── feature_importance.png
-│   └── roc_curve.png
-└── README.md
-```
+## Stack
 
-## 🔮 Future Improvements
-- Hyperparameter tuning (GridSearchCV)
-- Try additional models (XGBoost, Neural Networks)
-- Feature selection / dimensionality reduction (PCA)
-- Fix Logistic Regression convergence (scaling + higher max_iter)
-
-## 👩‍💻 Author
-**Nidhi Pandey** — M.Tech Biomedical Engineering, IIT Bombay
+Python · pandas · scikit-learn (SVM, Random Forest, Logistic Regression) · SHAP · matplotlib
